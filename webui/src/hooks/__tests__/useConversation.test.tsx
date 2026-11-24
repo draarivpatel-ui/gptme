@@ -93,6 +93,7 @@ describe('useConversation', () => {
     closeEventStream,
     getConversation: jest.fn(),
     reconcileLateUploadOrder: jest.fn().mockResolvedValue(undefined),
+    resyncLogAfterReconnect: jest.fn().mockResolvedValue(undefined),
     getChatConfig,
     waitForConversationCreation: jest.fn().mockResolvedValue(undefined),
   });
@@ -360,6 +361,17 @@ describe('useConversation', () => {
     act(() => eventHandlers!.onElicitPending!({ id: 'el-3', type: 'text', prompt: 'Q' }));
     act(() => eventHandlers!.onInterrupted!());
     expect(conversations$.get('chat-placeholder')!.pendingElicitation.get()).toBeNull();
+  });
+
+  it('re-syncs the log on reconnect handshakes but not the first one (#5145)', async () => {
+    renderHook(() => useConversation('chat-placeholder'));
+    await waitFor(() => expect(eventHandlers).toBeDefined());
+    const resync = primaryClient.resyncLogAfterReconnect as jest.Mock;
+    act(() => eventHandlers!.onReconnectState!({ generating: false, pendingTools: [] }));
+    expect(resync).not.toHaveBeenCalled();
+    act(() => eventHandlers!.onReconnectState!({ generating: false, pendingTools: [] }));
+    expect(resync).toHaveBeenCalledTimes(1);
+    expect(resync).toHaveBeenCalledWith('chat-placeholder');
   });
 
   it('clears stale pending approval when reconnect reports no pending tools', async () => {
